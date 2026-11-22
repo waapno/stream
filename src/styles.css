@@ -1,0 +1,154 @@
+/*
+ * Tailwind v4 entry: config lives here, with no tailwind.config.js or PostCSS plugin.
+ * - Keep every @import in this top block, above @theme and the rest of the file. Install an
+ *   npm package before @importing its CSS. Never @import a remote URL (web fonts, CDN CSS): the
+ *   build resolves @import from the filesystem. Load those with a <link> in the head() of
+ *   src/routes/__root.tsx and name the family in a --font-* token in @theme inline below.
+ */
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design system definition.
+ *
+ * The design lives in this file: oklch color tokens on the shadcn variables
+ * (--background, --foreground, --primary, --secondary, --muted, --accent, ...) plus
+ * new tokens as needed, font tokens, and custom styles and animations.
+ *
+ * The @theme inline block maps CSS custom properties to Tailwind utility
+ * classes (e.g. --color-primary -> bg-primary, text-primary).
+ *
+ * The :root and .dark blocks define the actual color values using oklch.
+ * All colors MUST use oklch format.
+ *
+ * To add a new semantic color:
+ * 1. Add the variable to :root (light value) and .dark (dark value)
+ * 2. Register it in @theme inline as --color-<name>: var(--<name>)
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  --radius: 0.75rem;
+  --background: oklch(0.14 0.004 260);
+  --foreground: oklch(0.96 0.003 260);
+  --card: oklch(0.19 0.005 260);
+  --card-foreground: oklch(0.96 0.003 260);
+  --popover: oklch(0.19 0.005 260);
+  --popover-foreground: oklch(0.96 0.003 260);
+  --primary: oklch(0.86 0.17 128);
+  --primary-foreground: oklch(0.16 0.02 128);
+  --secondary: oklch(0.24 0.006 260);
+  --secondary-foreground: oklch(0.96 0.003 260);
+  --muted: oklch(0.22 0.005 260);
+  --muted-foreground: oklch(0.66 0.01 260);
+  --accent: oklch(0.8 0.15 75);
+  --accent-foreground: oklch(0.18 0.03 75);
+  --destructive: oklch(0.65 0.22 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.28 0.006 260);
+  --input: oklch(0.28 0.006 260);
+  --ring: oklch(0.86 0.17 128);
+  --chart-1: oklch(0.86 0.17 128); --chart-2: oklch(0.8 0.15 75); --chart-3: oklch(0.65 0.22 25); --chart-4: oklch(0.7 0.1 230); --chart-5: oklch(0.6 0.01 260);
+  --sidebar: oklch(0.19 0.005 260); --sidebar-foreground: oklch(0.96 0.003 260); --sidebar-primary: oklch(0.86 0.17 128); --sidebar-primary-foreground: oklch(0.16 0.02 128); --sidebar-accent: oklch(0.24 0.006 260); --sidebar-accent-foreground: oklch(0.96 0.003 260); --sidebar-border: oklch(0.28 0.006 260); --sidebar-ring: oklch(0.86 0.17 128);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+@layer components {
+  .btn-dock { @apply flex min-h-16 flex-1 flex-col items-center justify-center gap-1 rounded-xl bg-secondary text-sm font-semibold text-secondary-foreground active:scale-95 active:bg-muted transition-transform; }
+  .btn-icon { @apply flex size-12 items-center justify-center rounded-xl bg-secondary text-secondary-foreground active:scale-95 transition-transform; }
+  .btn-icon[data-on="true"] { @apply bg-primary text-primary-foreground; }
+  .btn-main { @apply h-14 rounded-xl bg-primary px-5 text-base font-bold text-primary-foreground active:scale-95 transition-transform disabled:opacity-40; }
+  .field { @apply h-14 w-full rounded-xl border border-input bg-muted px-4 text-base text-foreground outline-none focus:border-ring; }
+  .seg { @apply h-12 flex-1 rounded-lg text-sm font-semibold text-muted-foreground; }
+  .seg[data-on="true"] { @apply bg-primary text-primary-foreground; }
+  .msg-mention { @apply border-l-4 border-accent bg-accent/10; }
+}
+
+@layer components {
+  .section-title { @apply text-xs font-bold uppercase tracking-widest text-muted-foreground; }
+  .hint { @apply text-sm text-muted-foreground; }
+  .btn-add { @apply flex h-14 w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border text-muted-foreground; }
+  .btn-soft { @apply flex h-12 items-center justify-center gap-2 rounded-xl bg-secondary text-sm font-semibold text-secondary-foreground active:scale-95 transition-transform; }
+  .toggle-row { @apply flex h-14 w-full items-center justify-between rounded-xl bg-muted px-4 text-base; }
+  .toggle-track { @apply h-7 w-12 rounded-full bg-border p-1 transition-colors; }
+  .toggle-track[data-on="true"] { @apply bg-primary; }
+  .toggle-knob { @apply block size-5 rounded-full bg-foreground transition-transform; }
+  .toggle-track[data-on="true"] .toggle-knob { @apply translate-x-5; }
+  .preset-btn { @apply min-w-0 flex-1 rounded-xl bg-muted px-4 py-2 text-left text-base font-semibold; }
+  .preset-btn[data-on="true"] { @apply bg-primary text-primary-foreground; }
+  .chat-chip { @apply flex h-14 min-w-0 flex-1 items-center gap-2 truncate rounded-xl bg-muted px-4 text-base font-semibold; }
+  .plat-tag { @apply mr-1.5 inline-flex size-5 items-center justify-center rounded align-middle text-[0.65rem] font-black; }
+  .plat-tag[data-p="kick"] { background: var(--kick); color: var(--background); }
+  .plat-tag[data-p="twitch"] { background: var(--twitch); color: var(--foreground); }
+  .plat-tag[data-p="youtube"] { background: var(--youtube); color: var(--foreground); }
+  .tap-banner { @apply flex w-full items-center justify-center gap-2 bg-accent py-3 font-bold text-accent-foreground; }
+  .overlay-strip { @apply grid max-h-[40vh] gap-1 overflow-y-auto border-b border-border bg-card; }
+  .overlay-strip .overlay-frame { @apply h-44 w-full border-0; }
+  .overlay-hidden { @apply pointer-events-none fixed bottom-0 left-0 size-px overflow-hidden opacity-0; }
+  .overlay-hidden .overlay-frame { width: 800px; height: 450px; border: 0; }
+}
+
+:root {
+  --kick: oklch(0.85 0.24 145);
+  --twitch: oklch(0.55 0.22 295);
+  --youtube: oklch(0.6 0.23 27);
+}

@@ -12,7 +12,8 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build:pages": "vite build --config vite.pages.config.ts"
+    "build:pages": "vite build --config vite.pages.config.ts",
+    "deploy:relay": "bunx wrangler deploy --config wrangler.toml"
   },
   "overrides": {
     "rolldown": "1.2.1",
