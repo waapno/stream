@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, BellOff, Settings, Sun, X, Trash2, Plus, Radio, Clapperboard, Tv, Link2, Volume2, RotateCw, Eye, EyeOff, Check } from "lucide-react";
+import { Bell, BellOff, Settings, Sun, Flashlight, FlashlightOff, X, Trash2, Plus, Radio, Clapperboard, Tv, Link2, Volume2, RotateCw, Eye, EyeOff, Check } from "lucide-react";
 import { connectTwitch, parseChannel, type ChatMsg, type Platform, type Status } from "@/lib/twitch";
 import { connectKick, parseKick, resolveKick } from "@/lib/kick";
 import { connectYouTube, parseYouTube } from "@/lib/youtube";
@@ -41,6 +41,8 @@ export function ChatConsole() {
   const [statuses, setStatuses] = useState<Record<string, Status>>({});
   const [open, setOpen] = useState(false);
   const [wake, setWake] = useState(false);
+  const [torch, setTorch] = useState(false);
+  const [torchError, setTorchError] = useState("");
   const [unread, setUnread] = useState(0);
   const [armed, setArmed] = useState(false); // first tap happened -> audio allowed
   const [reloadKey, setReloadKey] = useState(0);
@@ -48,6 +50,7 @@ export function ChatConsole() {
   const stick = useRef(true);
   const swRef = useRef<ServiceWorkerRegistration | null>(null);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
+  const torchStreamRef = useRef<MediaStream | null>(null);
 
   const profile = st.profiles.find((p) => p.id === st.active) ?? null;
   const prefs = profile?.prefs ?? DEFAULT_PREFS;
@@ -144,6 +147,9 @@ export function ChatConsole() {
     document.addEventListener("visibilitychange", get);
     return () => document.removeEventListener("visibilitychange", get);
   }, [wake]);
+  useEffect(() => () => {
+    torchStreamRef.current?.getTracks().forEach((track) => track.stop());
+  }, []);
 
   const toggleAlerts = async () => {
     if (prefs.alert === "off") {
@@ -152,6 +158,42 @@ export function ChatConsole() {
     } else setPrefs({ alert: "off" });
   };
   const toggleSpeech = () => setPrefs({ speech: prefs.speech === "off" ? "all" : "off" });
+  const toggleTorch = async () => {
+    setTorchError("");
+    if (torchStreamRef.current) {
+      torchStreamRef.current.getTracks().forEach((track) => track.stop());
+      torchStreamRef.current = null;
+      setTorch(false);
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setTorchError("Svítilna není v tomto prohlížeči dostupná.");
+      return;
+    }
+
+    let stream: MediaStream | null = null;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 640 }, height: { ideal: 480 } },
+      });
+      const track = stream.getVideoTracks()[0];
+      if (!track) throw new Error("Nebyla nalezena kamera.");
+      const capabilities = track.getCapabilities() as MediaTrackCapabilities & { torch?: boolean };
+      if (!capabilities.torch) throw new Error("Toto zařízení nebo prohlížeč nepodporuje ovládání blesku.");
+      const constraints = { advanced: [{ torch: true }] } as MediaTrackConstraints & {
+        advanced: (MediaTrackConstraintSet & { torch: boolean })[];
+      };
+      await track.applyConstraints(constraints);
+      torchStreamRef.current = stream;
+      setTorch(true);
+    } catch (error) {
+      stream?.getTracks().forEach((track) => track.stop());
+      const message = error instanceof Error ? error.message : String(error);
+      setTorchError(`Svítilnu se nepodařilo zapnout: ${message}`);
+    }
+  };
 
   const onScroll = () => {
     const el = listRef.current!;
@@ -185,6 +227,9 @@ export function ChatConsole() {
           <Volume2 />
         </button>
         <button className="btn-icon size-10 shrink-0 sm:size-12" data-on={wake} onClick={() => setWake((w) => !w)} aria-label="Nezhasínat displej"><Sun /></button>
+        <button className="btn-icon size-10 shrink-0 sm:size-12" data-on={torch} onClick={toggleTorch} aria-label={torch ? "Vypnout svítilnu" : "Zapnout svítilnu"} title="Svítilna">
+          {torch ? <FlashlightOff /> : <Flashlight />}
+        </button>
         <button className="btn-icon size-10 shrink-0 sm:size-12" onClick={() => setOpen(true)} aria-label="Nastavení"><Settings /></button>
       </header>
 
@@ -196,6 +241,7 @@ export function ChatConsole() {
           <Volume2 className="size-5" /> Klepni pro spuštění zvuku alertů
         </button>
       )}
+      {torchError && <p role="alert" className="tap-banner">{torchError}</p>}
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {prefs.overlays.length > 0 && (
