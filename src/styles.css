@@ -141,8 +141,8 @@
   .plat-tag[data-p="twitch"] { background: var(--twitch); color: var(--foreground); }
   .plat-tag[data-p="youtube"] { background: var(--youtube); color: var(--foreground); }
   .tap-banner { @apply flex w-full items-center justify-center gap-2 bg-accent py-3 font-bold text-accent-foreground; }
-  .overlay-strip { @apply grid max-h-[40vh] gap-1 overflow-y-auto border-b border-border bg-card; }
-  .overlay-strip .overlay-frame { @apply h-44 w-full border-0; }
+  .overlay-preview { @apply grid max-h-[34dvh] grid-cols-1 auto-rows-max gap-1 overflow-y-auto border-b border-border bg-card sm:grid-cols-2 lg:h-full lg:max-h-none lg:w-[38%] lg:max-w-[480px] lg:flex-none lg:auto-rows-[minmax(9rem,1fr)] lg:grid-cols-1 lg:border-b-0 lg:border-r; }
+  .overlay-preview .overlay-frame { @apply aspect-video h-auto w-full border-0 lg:aspect-auto lg:h-full; }
   .overlay-hidden { @apply pointer-events-none fixed bottom-0 left-0 size-px overflow-hidden opacity-0; }
   .overlay-hidden .overlay-frame { width: 800px; height: 450px; border: 0; }
 }

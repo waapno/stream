@@ -2,17 +2,18 @@ import type { KeepAlive } from "./keepalive";
 import type { Platform } from "./twitch";
 
 export type AlertMode = "off" | "mentions" | "all";
+export type SpeechMode = "off" | "mentions" | "all";
 export type Link = { label: string; url: string };
 /** Everything that's saved per channel preset. */
 export type Prefs = {
-  alert: AlertMode; vibrate: boolean; sound: boolean; big: boolean; keywords: string;
+  alert: AlertMode; speech: SpeechMode; speechVoice: string; vibrate: boolean; sound: boolean; big: boolean; keywords: string;
   shortcuts: Link[]; overlays: Link[]; showOverlays: boolean; keepAlive: KeepAlive;
 };
 export type Profile = { id: string; name: string; chats: string[]; prefs: Prefs };
 export type State = { active: string | null; profiles: Profile[]; relay: string };
 
 export const DEFAULT_PREFS: Prefs = {
-  alert: "mentions", vibrate: true, sound: true, big: true, keywords: "",
+  alert: "mentions", speech: "off", speechVoice: "", vibrate: true, sound: true, big: true, keywords: "",
   shortcuts: [
     { label: "OBS Blade", url: "intent://#Intent;package=com.kounex.obs_blade;end" },
     { label: "Kick", url: "https://dashboard.kick.com" },

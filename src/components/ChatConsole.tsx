@@ -5,7 +5,8 @@ import { connectKick, parseKick, resolveKick } from "@/lib/kick";
 import { connectYouTube, parseYouTube } from "@/lib/youtube";
 import { relayBase, setRelay } from "@/lib/relay";
 import { setKeepAlive, kickKeepAlive, type KeepAlive } from "@/lib/keepalive";
-import { DEFAULT_PREFS, EMPTY, PLATFORM_LABEL, STORE, decode, load, newProfile, type Link, type Prefs, type Profile, type State } from "@/lib/profiles";
+import { DEFAULT_PREFS, EMPTY, PLATFORM_LABEL, STORE, decode, load, newProfile, type Link, type Prefs, type Profile, type SpeechMode, type State } from "@/lib/profiles";
+import { speechSupported, speakChatMessage, speakText, stopSpeech } from "@/lib/speech";
 
 const MAX = 200;
 const BASE = (import.meta.env.BASE_URL as string | undefined) ?? "/";
@@ -71,6 +72,7 @@ export function ChatConsole() {
 
   const alertFor = useCallback((m: ChatMsg) => {
     const c = prefsRef.current;
+    if (c.speech !== "off" && (c.speech === "all" || m.mention)) speakChatMessage(m.user, m.text, c.speechVoice);
     if (c.alert === "off" || (c.alert === "mentions" && !m.mention)) return;
     if (c.vibrate && navigator.vibrate) navigator.vibrate(m.mention ? [120, 60, 120] : 60);
     if (c.sound) beep();
@@ -81,6 +83,9 @@ export function ChatConsole() {
       else try { new Notification(titleRef.current, opts); } catch { /* ignore */ }
     }
   }, []);
+  useEffect(() => {
+    stopSpeech();
+  }, [profile?.id, prefs.speech, prefs.speechVoice]);
 
   // One connection per chat in the active preset, merged into one feed.
   const chatsKey = profile?.chats.join("|") ?? "";
@@ -146,6 +151,7 @@ export function ChatConsole() {
       setPrefs({ alert: "mentions" });
     } else setPrefs({ alert: "off" });
   };
+  const toggleSpeech = () => setPrefs({ speech: prefs.speech === "off" ? "all" : "off" });
 
   const onScroll = () => {
     const el = listRef.current!;
@@ -163,7 +169,7 @@ export function ChatConsole() {
   const needsTap = !armed && !!profile && (prefs.overlays.length > 0 || prefs.keepAlive !== "off");
 
   return (
-    <div className="flex h-dvh flex-col bg-background">
+    <div className="mx-auto flex h-dvh w-full max-w-[1600px] flex-col bg-background lg:border-x lg:border-border">
       <header className="flex items-center gap-2 border-b border-border px-3 py-2">
         <button onClick={() => setOpen(true)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
           <span className="flex shrink-0 gap-1">
@@ -172,11 +178,14 @@ export function ChatConsole() {
           <span className="truncate text-lg font-bold">{profile ? profile.name : "Nastav kanál"}</span>
           {chats.length > 0 && <span className="tabular shrink-0 text-xs text-muted-foreground">{rate}/min</span>}
         </button>
-        <button className="btn-icon" data-on={prefs.alert !== "off"} onClick={toggleAlerts} aria-label="Upozornění">
+        <button className="btn-icon size-10 shrink-0 sm:size-12" data-on={prefs.alert !== "off"} onClick={toggleAlerts} aria-label="Upozornění">
           {prefs.alert === "off" ? <BellOff /> : <Bell />}
         </button>
-        <button className="btn-icon" data-on={wake} onClick={() => setWake((w) => !w)} aria-label="Nezhasínat displej"><Sun /></button>
-        <button className="btn-icon" onClick={() => setOpen(true)} aria-label="Nastavení"><Settings /></button>
+        <button className="btn-icon size-10 shrink-0 sm:size-12" data-on={prefs.speech !== "off"} onClick={toggleSpeech} aria-label={prefs.speech === "off" ? "Zapnout předčítání zpráv" : "Vypnout předčítání zpráv"} title="Předčítání zpráv" disabled={!speechSupported()}>
+          <Volume2 />
+        </button>
+        <button className="btn-icon size-10 shrink-0 sm:size-12" data-on={wake} onClick={() => setWake((w) => !w)} aria-label="Nezhasínat displej"><Sun /></button>
+        <button className="btn-icon size-10 shrink-0 sm:size-12" onClick={() => setOpen(true)} aria-label="Nastavení"><Settings /></button>
       </header>
 
       {noRelay && (
@@ -188,40 +197,42 @@ export function ChatConsole() {
         </button>
       )}
 
-      {prefs.overlays.length > 0 && (
-        <div className={prefs.showOverlays ? "overlay-strip" : "overlay-hidden"} aria-hidden={!prefs.showOverlays}>
-          {armed && prefs.overlays.map((o, i) => (
-            <iframe key={`${o.url}-${reloadKey}`} src={o.url} title={o.label || `Alert ${i + 1}`} allow="autoplay; encrypted-media" loading="eager" className="overlay-frame" />
-          ))}
-        </div>
-      )}
-
-      <main className="relative min-h-0 flex-1">
-        <div ref={listRef} onScroll={onScroll} className={`h-full overflow-y-auto [overflow-anchor:none] px-3 py-2 ${prefs.big ? "text-xl leading-snug" : "text-base"}`}>
-          {!profile && (
-            <div className="flex h-full flex-col items-center justify-center gap-4 text-center text-muted-foreground">
-              <Radio className="size-10" />
-              <p>Vlož odkaz na Kick, Twitch nebo YouTube kanál</p>
-              <button className="btn-main" onClick={() => setOpen(true)}>Nastavit chat</button>
-            </div>
-          )}
-          {profile && chats.length === 0 && <p className="pt-8 text-center text-muted-foreground">V předvolbě není žádný chat.</p>}
-          {chats.length > 0 && msgs.length === 0 && <p className="pt-8 text-center text-muted-foreground">{Object.values(statuses).some((s) => s === "live") ? "Čekám na zprávy…" : "Připojuji…"}</p>}
-          {msgs.map((m) => (
-            <p key={m.id} className={`break-words rounded-md px-2 py-1 ${m.mention ? "msg-mention" : ""}`}>
-              {multi && <span className="plat-tag" data-p={m.p}>{TAG[m.p]}</span>}
-              <span className="font-bold" style={m.color ? { color: m.color } : undefined}>{m.user}</span>
-              <span className="text-muted-foreground">: </span>
-              {m.text}
-            </p>
-          ))}
-        </div>
-        {unread > 0 && (
-          <button onClick={jump} className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-5 py-3 font-bold text-primary-foreground shadow-lg">
-            ↓ {unread} nových
-          </button>
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        {prefs.overlays.length > 0 && (
+          <aside className={prefs.showOverlays ? "overlay-preview" : "overlay-hidden"} aria-label="Náhled alertů" aria-hidden={!prefs.showOverlays}>
+            {armed && prefs.overlays.map((o, i) => (
+              <iframe key={`${o.url}-${reloadKey}`} src={o.url} title={o.label || `Alert ${i + 1}`} allow="autoplay; encrypted-media" loading="eager" className="overlay-frame" />
+            ))}
+          </aside>
         )}
-      </main>
+
+        <main className="relative min-h-0 flex-1">
+          <div ref={listRef} onScroll={onScroll} className={`h-full overflow-y-auto [overflow-anchor:none] px-3 py-2 ${prefs.big ? "text-xl leading-snug" : "text-base"}`}>
+            {!profile && (
+              <div className="flex h-full flex-col items-center justify-center gap-4 text-center text-muted-foreground">
+                <Radio className="size-10" />
+                <p>Vlož odkaz na Kick, Twitch nebo YouTube kanál</p>
+                <button className="btn-main" onClick={() => setOpen(true)}>Nastavit chat</button>
+              </div>
+            )}
+            {profile && chats.length === 0 && <p className="pt-8 text-center text-muted-foreground">V předvolbě není žádný chat.</p>}
+            {chats.length > 0 && msgs.length === 0 && <p className="pt-8 text-center text-muted-foreground">{Object.values(statuses).some((s) => s === "live") ? "Čekám na zprávy…" : "Připojuji…"}</p>}
+            {msgs.map((m) => (
+              <p key={m.id} className={`break-words rounded-md px-2 py-1 ${m.mention ? "msg-mention" : ""}`}>
+                {multi && <span className="plat-tag" data-p={m.p}>{TAG[m.p]}</span>}
+                <span className="font-bold" style={m.color ? { color: m.color } : undefined}>{m.user}</span>
+                <span className="text-muted-foreground">: </span>
+                {m.text}
+              </p>
+            ))}
+          </div>
+          {unread > 0 && (
+            <button onClick={jump} className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-5 py-3 font-bold text-primary-foreground shadow-lg">
+              ↓ {unread} nových
+            </button>
+          )}
+        </main>
+      </div>
 
       <nav className="flex gap-2 border-t border-border p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
         {prefs.shortcuts.map((s, i) => (
@@ -263,7 +274,16 @@ function SettingsPanel({ st, setSt, profile, prefs, setPrefs, reload, close }: {
   const [link, setLink] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const src = detect(link);
+  useEffect(() => {
+    if (!speechSupported()) return;
+    const synthesis = window.speechSynthesis;
+    const updateVoices = () => setVoices(synthesis.getVoices());
+    updateVoices();
+    synthesis.addEventListener("voiceschanged", updateVoices);
+    return () => synthesis.removeEventListener("voiceschanged", updateVoices);
+  }, []);
 
   const addChat = async () => {
     if (!src) return;
@@ -363,6 +383,33 @@ function SettingsPanel({ st, setSt, profile, prefs, setPrefs, reload, close }: {
               <Toggle k="vibrate" label="Vibrace" />
               <Toggle k="sound" label="Pípnutí" />
               <Toggle k="big" label="Velké písmo" />
+            </section>
+
+            <section className="space-y-3">
+              <h3 className="section-title">Předčítání chatu (TTS)</h3>
+              <div className="flex gap-1 rounded-xl bg-muted p-1">
+                {(["off", "mentions", "all"] as const).map((mode: SpeechMode) => (
+                  <button key={mode} className="seg" data-on={prefs.speech === mode} onClick={() => setPrefs({ speech: mode })}>
+                    {mode === "off" ? "Vypnuto" : mode === "mentions" ? "Zmínky" : "Všechny"}
+                  </button>
+                ))}
+              </div>
+              <label className="block space-y-2">
+                <span className="hint">Hlas</span>
+                <select className="field" value={prefs.speechVoice} onChange={(e) => setPrefs({ speechVoice: e.target.value })} disabled={!speechSupported()}>
+                  <option value="">Automaticky – čeština, ženský pokud dostupný</option>
+                  {voices.map((voice) => <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name} ({voice.lang})</option>)}
+                </select>
+              </label>
+              <div className="flex gap-2">
+                <button className="btn-soft flex-1" disabled={!speechSupported()} onClick={() => speakText("Ahoj, toto je zkušební hlas předčítání chatu.", prefs.speechVoice)}>
+                  <Volume2 /> Vyzkoušet hlas
+                </button>
+              </div>
+              <p className="hint">
+                Používá hlas dostupný v telefonu nebo počítači, bez Google API a bez dalšího nastavení. Při rychlém chatu drží nejvýše 8 čekajících zpráv a starší přeskočí.
+                {!speechSupported() && " Tento prohlížeč předčítání nepodporuje."}
+              </p>
             </section>
 
             <section className="space-y-3">
