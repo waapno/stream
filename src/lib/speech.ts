@@ -64,7 +64,7 @@ export function speakText(text: string, voiceURI = "", onError?: (error: string)
   if (!cleanText) return;
 
   if (queue.length >= MAX_PENDING) queue.shift();
-  queue.push({ text: cleanText.slice(0, MAX_TEXT_LENGTH), voiceURI, onError });
+  queue.push({ text: cleanText.slice(0, MAX_TEXT_LENGTH), voiceURI, ...(onError ? { onError } : {}) });
   playNext();
 }
 
