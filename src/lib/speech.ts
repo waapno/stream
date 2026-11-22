@@ -4,6 +4,7 @@ const MAX_TEXT_LENGTH = 240;
 type SpeechRequest = {
   text: string;
   voiceURI: string;
+  onError?: (error: string) => void;
 };
 
 let queue: SpeechRequest[] = [];
@@ -48,22 +49,38 @@ function playNext() {
     playNext();
   };
   utterance.onend = finish;
-  utterance.onerror = finish;
+  utterance.onerror = (event) => {
+    if (event.error !== "canceled" && event.error !== "interrupted") {
+      request.onError?.(event.error);
+    }
+    finish();
+  };
   window.speechSynthesis.speak(utterance);
 }
 
-export function speakText(text: string, voiceURI = "") {
+export function speakText(text: string, voiceURI = "", onError?: (error: string) => void) {
   if (!speechSupported()) return;
   const cleanText = text.replace(/https?:\/\/\S+/gi, "odkaz").replace(/\s+/g, " ").trim();
   if (!cleanText) return;
 
   if (queue.length >= MAX_PENDING) queue.shift();
-  queue.push({ text: cleanText.slice(0, MAX_TEXT_LENGTH), voiceURI });
+  queue.push({ text: cleanText.slice(0, MAX_TEXT_LENGTH), voiceURI, onError });
   playNext();
 }
 
-export function speakChatMessage(user: string, text: string, voiceURI = "") {
-  speakText(`${user}: ${text}`, voiceURI);
+export function speakChatMessage(user: string, text: string, voiceURI = "", onError?: (error: string) => void) {
+  speakText(`${user}: ${text}`, voiceURI, onError);
+}
+
+export function resumeSpeech() {
+  if (!speechSupported()) return;
+  const synthesis = window.speechSynthesis;
+  if (synthesis.paused) {
+    synthesis.resume();
+    return;
+  }
+  if (speaking && !synthesis.speaking && !synthesis.pending) speaking = false;
+  playNext();
 }
 
 export function stopSpeech() {

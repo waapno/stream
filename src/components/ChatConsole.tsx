@@ -6,7 +6,7 @@ import { connectYouTube, parseYouTube } from "@/lib/youtube";
 import { relayBase, setRelay } from "@/lib/relay";
 import { setKeepAlive, kickKeepAlive, type KeepAlive } from "@/lib/keepalive";
 import { DEFAULT_PREFS, EMPTY, PLATFORM_LABEL, STORE, decode, load, newProfile, type Link, type Prefs, type Profile, type SpeechMode, type State } from "@/lib/profiles";
-import { speechSupported, speakChatMessage, speakText, stopSpeech } from "@/lib/speech";
+import { speechSupported, speakChatMessage, speakText, stopSpeech, resumeSpeech } from "@/lib/speech";
 
 const MAX = 200;
 const BASE = (import.meta.env.BASE_URL as string | undefined) ?? "/";
@@ -43,6 +43,7 @@ export function ChatConsole() {
   const [wake, setWake] = useState(false);
   const [torch, setTorch] = useState(false);
   const [torchError, setTorchError] = useState("");
+  const [speechError, setSpeechError] = useState("");
   const [unread, setUnread] = useState(0);
   const [armed, setArmed] = useState(false); // first tap happened -> audio allowed
   const [reloadKey, setReloadKey] = useState(0);
@@ -75,7 +76,9 @@ export function ChatConsole() {
 
   const alertFor = useCallback((m: ChatMsg) => {
     const c = prefsRef.current;
-    if (c.speech !== "off" && (c.speech === "all" || m.mention)) speakChatMessage(m.user, m.text, c.speechVoice);
+    if (c.speech !== "off" && (c.speech === "all" || m.mention)) {
+      speakChatMessage(m.user, m.text, c.speechVoice, () => setSpeechError("Předčítání se zastavilo. Zkontroluj hlasový výstup v Androidu a zkus ho znovu zapnout."));
+    }
     if (c.alert === "off" || (c.alert === "mentions" && !m.mention)) return;
     if (c.vibrate && navigator.vibrate) navigator.vibrate(m.mention ? [120, 60, 120] : 60);
     if (c.sound) beep();
@@ -86,9 +89,18 @@ export function ChatConsole() {
       else try { new Notification(titleRef.current, opts); } catch { /* ignore */ }
     }
   }, []);
+  const previousProfile = useRef<string | null>(null);
   useEffect(() => {
-    stopSpeech();
-  }, [profile?.id, prefs.speech, prefs.speechVoice]);
+    if (previousProfile.current !== profile?.id || prefs.speech === "off") stopSpeech();
+    previousProfile.current = profile?.id ?? null;
+  }, [profile?.id, prefs.speech]);
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (!document.hidden) resumeSpeech();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
 
   // One connection per chat in the active preset, merged into one feed.
   const chatsKey = profile?.chats.join("|") ?? "";
@@ -157,7 +169,16 @@ export function ChatConsole() {
       setPrefs({ alert: "mentions" });
     } else setPrefs({ alert: "off" });
   };
-  const toggleSpeech = () => setPrefs({ speech: prefs.speech === "off" ? "all" : "off" });
+  const toggleSpeech = () => {
+    setSpeechError("");
+    if (prefs.speech === "off") {
+      setPrefs({ speech: "all" });
+      speakText("Předčítání zapnuto.", prefs.speechVoice, () => setSpeechError("Android hlasový výstup nespustil. Zkontroluj Text-to-speech v nastavení Androidu."));
+    } else {
+      setPrefs({ speech: "off" });
+      stopSpeech();
+    }
+  };
   const toggleTorch = async () => {
     setTorchError("");
     if (torchStreamRef.current) {
@@ -242,6 +263,7 @@ export function ChatConsole() {
         </button>
       )}
       {torchError && <p role="alert" className="tap-banner">{torchError}</p>}
+      {speechError && <p role="alert" className="tap-banner">{speechError}</p>}
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {prefs.overlays.length > 0 && (
@@ -289,7 +311,7 @@ export function ChatConsole() {
         ))}
       </nav>
 
-      {open && <SettingsPanel st={st} setSt={setSt} profile={profile} prefs={prefs} setPrefs={setPrefs} reload={() => setReloadKey((k) => k + 1)} close={() => setOpen(false)} />}
+      {open && <SettingsPanel st={st} setSt={setSt} profile={profile} prefs={prefs} setPrefs={setPrefs} speechError={speechError} onSpeechError={setSpeechError} reload={() => setReloadKey((k) => k + 1)} close={() => setOpen(false)} />}
     </div>
   );
 }
@@ -313,9 +335,9 @@ function LinkList({ items, onChange, max, labelPh, urlPh, addLabel }: { items: L
   );
 }
 
-function SettingsPanel({ st, setSt, profile, prefs, setPrefs, reload, close }: {
+function SettingsPanel({ st, setSt, profile, prefs, setPrefs, speechError, onSpeechError, reload, close }: {
   st: State; setSt: React.Dispatch<React.SetStateAction<State>>; profile: Profile | null; prefs: Prefs;
-  setPrefs: (p: Partial<Prefs>) => void; reload: () => void; close: () => void;
+  setPrefs: (p: Partial<Prefs>) => void; speechError: string; onSpeechError: (error: string) => void; reload: () => void; close: () => void;
 }) {
   const [link, setLink] = useState("");
   const [busy, setBusy] = useState(false);
@@ -448,12 +470,13 @@ function SettingsPanel({ st, setSt, profile, prefs, setPrefs, reload, close }: {
                 </select>
               </label>
               <div className="flex gap-2">
-                <button className="btn-soft flex-1" disabled={!speechSupported()} onClick={() => speakText("Ahoj, toto je zkušební hlas předčítání chatu.", prefs.speechVoice)}>
+                <button className="btn-soft flex-1" disabled={!speechSupported()} onClick={() => { onSpeechError(""); speakText("Ahoj, toto je zkušební hlas předčítání chatu.", prefs.speechVoice, () => onSpeechError("Hlas se nepodařilo spustit. Zkontroluj Text-to-speech v nastavení Androidu.")); }}>
                   <Volume2 /> Vyzkoušet hlas
                 </button>
               </div>
+              {speechError && <p role="alert" className="text-sm text-destructive">{speechError}</p>}
               <p className="hint">
-                Používá hlas dostupný v telefonu nebo počítači, bez Google API a bez dalšího nastavení. Při rychlém chatu drží nejvýše 8 čekajících zpráv a starší přeskočí.
+                Používá hlas dostupný v telefonu nebo počítači, bez Google API. Na Androidu předčítání odemkne první klepnutí na ikonu hlasu. Pokud není slyšet, zkontroluj v Androidu Nastavení → Usnadnění → Výstup převodu textu na řeč. Při rychlém chatu drží nejvýše 8 čekajících zpráv a starší přeskočí.
                 {!speechSupported() && " Tento prohlížeč předčítání nepodporuje."}
               </p>
             </section>
